@@ -121,21 +121,34 @@ st.markdown("## ➕ Quick Entry")
 
 selected_machine = st.selectbox("Select Machine", machines)
 
-qty = st.number_input("🔢 Quantity", min_value=0)
-
 size = st.text_input("Size")
-grade = st.selectbox("Grade", ["A", "B", "C"])
+board = st.text_input("Board")
+thik = st.text_input("Thickness")
+paper = st.text_input("Paper")
+finish = st.text_input("Finish")
 
-if st.button("Save Entry"):
-    c.execute(
-        "INSERT INTO production (machine, report_date, shift, size, grade, qty, entered_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (selected_machine, str(report_date), shift, size, grade, qty, st.session_state["user"])
-    )
-    conn.commit()
-    st.success("Entry Saved Successfully!")
-    st.rerun()
+osr = st.number_input("OSR", min_value=0)
+agrade = st.number_input("A Grade", min_value=0)
+bgrade = st.number_input("B Grade", min_value=0)
 
-st.markdown("---")
+total = osr + agrade + bgrade
+st.write("Total:", total)
+
+
+new_entry = {
+    "Date": date,
+    "Shift": shift,
+    "Machine": machine,
+    "Size": size,
+    "Board": board,
+    "Thickness": thik,
+    "Paper": paper,
+    "Finish": finish,
+    "OSR": osr,
+    "Agrade": agrade,
+    "Bgrade": bgrade,
+    "Total": total
+}
 
 # ---------------- REPORT ----------------
 st.markdown("## 📋 Report")
@@ -145,10 +158,18 @@ df = pd.read_sql_query(
     conn,
     params=(str(report_date), shift)
 )
-
+df["Grand Total"] = df["OSR"] + df["Agrade"] + df["Bgrade"]
 st.dataframe(df, use_container_width=True)
 
-if st.button("Download Excel"):
-    file_name = "production_report.xlsx"
-    df.to_excel(file_name, index=False)
-    st.success("Excel Ready!")
+import io
+
+output = io.BytesIO()
+with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+    df.to_excel(writer, index=False, sheet_name='Report')
+
+st.download_button(
+    label="Download Excel Report",
+    data=output.getvalue(),
+    file_name="Production_Report.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)

@@ -135,20 +135,21 @@ total = osr + agrade + bgrade
 st.write("Total:", total)
 
 
-new_entry = {
-    "Date": date,
-    "Shift": shift,
-    "Machine": machine,
-    "Size": size,
-    "Board": board,
-    "Thickness": thik,
-    "Paper": paper,
-    "Finish": finish,
-    "OSR": osr,
-    "Agrade": agrade,
-    "Bgrade": bgrade,
-    "Total": total
-}
+if st.button("Save Entry"):
+    new_entry = {
+        "Date": report_date,
+        "Shift": shift,
+        "Machine": selected_machine,
+        "Size": size,
+        "Board": board,
+        "Thickness": thik,
+        "Paper": paper,
+        "Finish": finish,
+        "OSR": osr,
+        "Agrade": agrade,
+        "Bgrade": bgrade,
+        "Total": total
+    }
 
 # ---------------- REPORT ----------------
 st.markdown("## 📋 Report")

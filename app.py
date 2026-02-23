@@ -159,7 +159,14 @@ df = pd.read_sql_query(
     conn,
     params=(str(report_date), shift)
 )
-df["Grand Total"] = df["OSR"] + df["Agrade"] + df["Bgrade"]
+if "OSR" in df.columns and "Agrade" in df.columns and "Bgrade" in df.columns:
+    df["Grand Total"] = (
+        df["OSR"].astype(float) +
+        df["Agrade"].astype(float) +
+        df["Bgrade"].astype(float)
+    )
+else:
+    df["Grand Total"] = 0
 st.dataframe(df, use_container_width=True)
 
 import io

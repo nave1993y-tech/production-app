@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS production (
 
 conn.commit()
 
-# ----------- DEFAULT USERS (5 LOG) ----------
+# ----------- DEFAULT USERS ----------
 default_users = {
     "user1": "123",
     "user2": "123",
@@ -43,7 +43,7 @@ for u, p in default_users.items():
 conn.commit()
 
 # ---------------- LOGIN ----------------
-st.sidebar.title("Login")
+st.sidebar.title("🔐 Login")
 
 username = st.sidebar.text_input("Username")
 password = st.sidebar.text_input("Password", type="password")
@@ -64,20 +64,46 @@ if "user" not in st.session_state:
 
 st.sidebar.success(f"Logged in as {st.session_state['user']}")
 
+# ---------------- CHANGE PASSWORD ----------------
+st.sidebar.markdown("### 🔑 Change Password")
+
+current = st.sidebar.text_input("Current Password", type="password")
+new_pass = st.sidebar.text_input("New Password", type="password")
+
+if st.sidebar.button("Update Password"):
+    check = c.execute(
+        "SELECT * FROM users WHERE username=? AND password=?",
+        (st.session_state["user"], current)
+    ).fetchone()
+
+    if check:
+        c.execute(
+            "UPDATE users SET password=? WHERE username=?",
+            (new_pass, st.session_state["user"])
+        )
+        conn.commit()
+        st.sidebar.success("Password Updated")
+    else:
+        st.sidebar.error("Wrong Current Password")
+
+# ---------------- LOGOUT ----------------
+if st.sidebar.button("Logout"):
+    del st.session_state["user"]
+    st.rerun()
+
 # ---------------- HEADER ----------------
 st.title("🏭 Production System")
 
-report_date = st.date_input("Date", date.today())
-shift = st.selectbox("Shift", ["Day", "Night"])
+report_date = st.date_input("📅 Date", date.today())
+shift = st.selectbox("🌙 Shift", ["Day", "Night"])
 
 machines = ["Machine 1", "Machine 2", "Machine 3"]
 
-st.divider()
+st.markdown("## 📊 Machine Totals")
 
-# ---------------- MACHINE TOTALS ----------------
-st.subheader("Machine Totals")
+cols = st.columns(3)
 
-for m in machines:
+for i, m in enumerate(machines):
     total = c.execute(
         "SELECT SUM(qty) FROM production WHERE machine=? AND report_date=? AND shift=?",
         (m, str(report_date), shift)
@@ -86,23 +112,19 @@ for m in machines:
     if total is None:
         total = 0
 
-    st.write(f"{m} → {total}")
+    cols[i].metric(m, total)
 
-st.divider()
+st.markdown("---")
 
 # ---------------- QUICK ENTRY ----------------
-st.subheader("Quick Entry")
+st.markdown("## ➕ Quick Entry")
 
-selected_machine = st.selectbox("Machine", machines)
+selected_machine = st.selectbox("Select Machine", machines)
 
-col1, col2 = st.columns(2)
+qty = st.number_input("🔢 Quantity", min_value=0)
 
-with col1:
-    size = st.text_input("Size")
-    grade = st.selectbox("Grade", ["A", "B", "C"])
-
-with col2:
-    qty = st.number_input("Quantity", min_value=0)
+size = st.text_input("Size")
+grade = st.selectbox("Grade", ["A", "B", "C"])
 
 if st.button("Save Entry"):
     c.execute(
@@ -110,20 +132,21 @@ if st.button("Save Entry"):
         (selected_machine, str(report_date), shift, size, grade, qty, st.session_state["user"])
     )
     conn.commit()
-    st.success("Saved Successfully!")
+    st.success("Entry Saved Successfully!")
+    st.rerun()
 
-st.divider()
+st.markdown("---")
 
 # ---------------- REPORT ----------------
-st.subheader("Report")
+st.markdown("## 📋 Report")
 
 df = pd.read_sql_query(
-    "SELECT * FROM production WHERE report_date=? AND shift=?",
+    "SELECT machine, qty, entered_by FROM production WHERE report_date=? AND shift=?",
     conn,
     params=(str(report_date), shift)
 )
 
-st.dataframe(df)
+st.dataframe(df, use_container_width=True)
 
 if st.button("Download Excel"):
     file_name = "production_report.xlsx"

@@ -192,9 +192,7 @@ else:
     )
 
     # PDF Download
-  from reportlab.platypus import Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
-
+  
 pdf_buffer = BytesIO()
 doc = SimpleDocTemplate(pdf_buffer, pagesize=pagesizes.A4)
 elements = []

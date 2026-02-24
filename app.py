@@ -119,7 +119,9 @@ if st.button("Save Entry"):
 # ---------------------------
 st.markdown("## 📊 Production Report")
 
-if not df.empty:
+if df.empty:
+    st.info("No data available.")
+else:
 
     for index, row in df.iterrows():
 
@@ -130,14 +132,12 @@ if not df.empty:
             with col1:
                 new_size = st.text_input("Size", row["Size"], key=f"size{index}")
                 new_board = st.text_input("Board", row["Board"], key=f"board{index}")
-                new_osr = st.text_input("OSR", row["OSR"], key=f"osr{index}")
 
             with col2:
-                new_thickness = st.text_input("Thickness", row["Thickness"], key=f"th{index}")
+                new_osr = st.text_input("OSR", row["OSR"], key=f"osr{index}")
                 new_agrade = st.text_input("A Grade", row["Agrade"], key=f"agr{index}")
                 new_bgrade = st.text_input("B Grade", row["Bgrade"], key=f"bgr{index}")
 
-            # Update Total
             try:
                 new_total = float(new_osr or 0) + float(new_agrade or 0) + float(new_bgrade or 0)
             except:
@@ -147,31 +147,23 @@ if not df.empty:
 
             col3, col4 = st.columns(2)
 
-            with col3:
-                if st.button("Update", key=f"update{index}"):
+            if col3.button("Update", key=f"update{index}"):
+                df.at[index, "Size"] = new_size
+                df.at[index, "Board"] = new_board
+                df.at[index, "OSR"] = new_osr
+                df.at[index, "Agrade"] = new_agrade
+                df.at[index, "Bgrade"] = new_bgrade
+                df.at[index, "Grand Total"] = new_total
 
-                    df.at[index, "Size"] = new_size
-                    df.at[index, "Board"] = new_board
-                    df.at[index, "Thickness"] = new_thickness
-                    df.at[index, "OSR"] = new_osr
-                    df.at[index, "Agrade"] = new_agrade
-                    df.at[index, "Bgrade"] = new_bgrade
-                    df.at[index, "Grand Total"] = new_total
+                df.to_csv(DATA_FILE, index=False)
+                st.success("Updated!")
+                st.rerun()
 
-                    df.to_csv(DATA_FILE, index=False)
-                    st.success("Updated Successfully!")
-                    st.rerun()
-
-            with col4:
-                if st.button("Delete", key=f"delete{index}"):
-
-                    df = df.drop(index)
-                    df.to_csv(DATA_FILE, index=False)
-                    st.warning("Deleted Successfully!")
-                    st.rerun()
-
-else:
-    st.info("No data available.")
+            if col4.button("Delete", key=f"delete{index}"):
+                df = df.drop(index)
+                df.to_csv(DATA_FILE, index=False)
+                st.warning("Deleted!")
+                st.rerun()
     # CSV Download
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button("Download CSV", csv, "report.csv", "text/csv")

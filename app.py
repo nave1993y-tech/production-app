@@ -200,5 +200,5 @@ else:
         "application/pdf"
     )
 
-else:
+
     st.info("No data available.")

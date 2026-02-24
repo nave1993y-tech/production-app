@@ -197,7 +197,7 @@ pdf_buffer = BytesIO()
 doc = SimpleDocTemplate(pdf_buffer, pagesize=pagesizes.A4)
 elements = []
 
-styles = getSampleStyleSheet()
+
 
 # Heading
 heading = Paragraph("<b>DAILY PRODUCTION REPORT</b>", styles["Title"])

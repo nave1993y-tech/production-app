@@ -2,6 +2,32 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import os
+# -----------------------
+# SIMPLE LOGIN SYSTEM
+# -----------------------
+
+USERNAME = "admin"
+PASSWORD = "1234"
+
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+def login():
+    st.title("🔐 Login Required")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+        if username == USERNAME and password == PASSWORD:
+            st.session_state.logged_in = True
+            st.success("Login Successful!")
+            st.rerun()
+        else:
+            st.error("Wrong Username or Password")
+
+if not st.session_state.logged_in:
+    login()
+    st.stop()
 from io import BytesIO
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table
 from reportlab.lib import colors

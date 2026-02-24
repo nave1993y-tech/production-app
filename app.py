@@ -192,25 +192,26 @@ else:
     )
 
     # PDF Download
-  
-pdf_buffer = BytesIO()
-doc = SimpleDocTemplate(pdf_buffer, pagesize=pagesizes.A4)
-elements = []
+ pdf_buffer = BytesIO()
+    doc = SimpleDocTemplate(pdf_buffer, pagesize=pagesizes.A4)
+    elements = []
+
+    table_data = [df.columns.tolist()] + df.values.tolist()
+    table = Table(table_data)
+    table.setStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.grey),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.black)
+    ])
+
+    elements.append(table)
+    doc.build(elements)
+
+    st.download_button(
+        "Download PDF",
+        pdf_buffer.getvalue(),
+        "report.pdf",
+        "application/pdf"
+    )
 
 
-
-# Heading
-heading = Paragraph("<b>DAILY PRODUCTION REPORT</b>", styles["Title"])
-elements.append(heading)
-elements.append(Spacer(1, 12))
-
-# Table
-table_data = [df.columns.tolist()] + df.values.tolist()
-table = Table(table_data)
-table.setStyle([
-    ('BACKGROUND', (0,0), (-1,0), colors.grey),
-    ('GRID', (0,0), (-1,-1), 0.5, colors.black)
-])
-
-elements.append(table)
-doc.build(elements)
+    st.info("No data available.")

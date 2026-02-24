@@ -123,60 +123,47 @@ if df.empty:
     st.info("No data available.")
 else:
 
-    # Show full table
-    st.dataframe(df, use_container_width=True)
+    for index, row in df.iterrows():
 
-    st.markdown("---")
-    st.markdown("### Select Entry to Edit or Delete")
+        with st.expander(f"{row['Date']} | {row['Machine']} | Total: {row['Grand Total']}"):
 
-    # Create selection list
-    selection = st.selectbox(
-        "Select Entry",
-        df.index,
-        format_func=lambda x: f"{df.loc[x,'Date']} | {df.loc[x,'Machine']} | Total: {df.loc[x,'Grand Total']}"
-    )
+            col1, col2 = st.columns(2)
 
-    row = df.loc[selection]
+            with col1:
+                new_size = st.text_input("Size", row["Size"], key=f"size{index}")
+                new_board = st.text_input("Board", row["Board"], key=f"board{index}")
 
-    st.markdown("### ✏️ Edit Entry")
+            with col2:
+                new_osr = st.text_input("OSR", row["OSR"], key=f"osr{index}")
+                new_agrade = st.text_input("A Grade", row["Agrade"], key=f"agr{index}")
+                new_bgrade = st.text_input("B Grade", row["Bgrade"], key=f"bgr{index}")
 
-    col1, col2 = st.columns(2)
+            try:
+                new_total = float(new_osr or 0) + float(new_agrade or 0) + float(new_bgrade or 0)
+            except:
+                new_total = 0
 
-    with col1:
-        new_size = st.text_input("Size", row["Size"])
-        new_board = st.text_input("Board", row["Board"])
-        new_osr = st.text_input("OSR", row["OSR"])
+            st.write("Updated Total:", new_total)
 
-    with col2:
-        new_agrade = st.text_input("A Grade", row["Agrade"])
-        new_bgrade = st.text_input("B Grade", row["Bgrade"])
+            col3, col4 = st.columns(2)
 
-    try:
-        new_total = float(new_osr or 0) + float(new_agrade or 0) + float(new_bgrade or 0)
-    except:
-        new_total = 0
+            if col3.button("Update", key=f"update{index}"):
+                df.at[index, "Size"] = new_size
+                df.at[index, "Board"] = new_board
+                df.at[index, "OSR"] = new_osr
+                df.at[index, "Agrade"] = new_agrade
+                df.at[index, "Bgrade"] = new_bgrade
+                df.at[index, "Grand Total"] = new_total
 
-    st.write("Updated Total:", new_total)
+                df.to_csv(DATA_FILE, index=False)
+                st.success("Updated!")
+                st.rerun()
 
-    col3, col4 = st.columns(2)
-
-    if col3.button("Update Entry"):
-        df.at[selection, "Size"] = new_size
-        df.at[selection, "Board"] = new_board
-        df.at[selection, "OSR"] = new_osr
-        df.at[selection, "Agrade"] = new_agrade
-        df.at[selection, "Bgrade"] = new_bgrade
-        df.at[selection, "Grand Total"] = new_total
-
-        df.to_csv(DATA_FILE, index=False)
-        st.success("Updated Successfully!")
-        st.rerun()
-
-    if col4.button("Delete Entry"):
-        df = df.drop(selection)
-        df.to_csv(DATA_FILE, index=False)
-        st.warning("Deleted Successfully!")
-        st.rerun()
+            if col4.button("Delete", key=f"delete{index}"):
+                df = df.drop(index)
+                df.to_csv(DATA_FILE, index=False)
+                st.warning("Deleted!")
+                st.rerun()
     # CSV Download
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button("Download CSV", csv, "report.csv", "text/csv")

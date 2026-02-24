@@ -192,7 +192,7 @@ else:
     )
 
     # PDF Download
- pdf_buffer = BytesIO()
+  pdf_buffer = BytesIO()
     doc = SimpleDocTemplate(pdf_buffer, pagesize=pagesizes.A4)
     elements = []
 
@@ -212,6 +212,5 @@ else:
         "report.pdf",
         "application/pdf"
     )
-
 
     st.info("No data available.")

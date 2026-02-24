@@ -122,7 +122,7 @@ st.title("📊 Production Report")
 
 if not df.empty:
 
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df)
 
     # CSV Download
     csv = df.to_csv(index=False).encode("utf-8")

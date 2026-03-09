@@ -192,27 +192,34 @@ else:
     )
 
     # PDF Download
- from reportlab.platypus import Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
+ styles = getSampleStyleSheet()
 
-pdf_buffer = BytesIO()
-doc = SimpleDocTemplate(pdf_buffer, pagesize=pagesizes.A4)
-elements = []
+    pdf_buffer = BytesIO()
+    doc = SimpleDocTemplate(pdf_buffer, pagesize=pagesizes.A4)
 
-styles = getSampleStyleSheet()
+    elements = []
 
-# Heading
-heading = Paragraph("<b>DAILY PRODUCTION REPORT</b>", styles["Title"])
-elements.append(heading)
-elements.append(Spacer(1, 12))
+    # Heading
+    heading = Paragraph("<b>DAILY PRODUCTION REPORT</b>", styles["Title"])
+    elements.append(heading)
+    elements.append(Spacer(1, 20))
 
-# Table
-table_data = [df.columns.tolist()] + df.values.tolist()
-table = Table(table_data)
-table.setStyle([
-    ('BACKGROUND', (0,0), (-1,0), colors.grey),
-    ('GRID', (0,0), (-1,-1), 0.5, colors.black)
-])
+    # Table
+    table_data = [df.columns.tolist()] + df.values.tolist()
 
-elements.append(table)
-doc.build(elements)
+    table = Table(table_data)
+    table.setStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.grey),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.black)
+    ])
+
+    elements.append(table)
+
+    doc.build(elements)
+
+    st.download_button(
+        "Download PDF",
+        pdf_buffer.getvalue(),
+        "production_report.pdf",
+        "application/pdf"
+    )

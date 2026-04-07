@@ -1,224 +1,134 @@
 import streamlit as st
+import sqlite3
 import pandas as pd
-from datetime import datetime
-import os
-# -----------------------
-# SIMPLE LOGIN SYSTEM
-# -----------------------
+from datetime import date
 
-USERNAME = "admin"
-PASSWORD = "1234"
+# ---------------- DATABASE ----------------
+conn = sqlite3.connect("production.db", check_same_thread=False)
+c = conn.cursor()
 
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
+c.execute('''
+CREATE TABLE IF NOT EXISTS users (
+    username TEXT PRIMARY KEY,
+    password TEXT
+)
+''')
 
-def login():
-    st.title("🔐 Login Required")
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
+c.execute('''
+CREATE TABLE IF NOT EXISTS production (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    machine TEXT,
+    report_date TEXT,
+    shift TEXT,
+    size TEXT,
+    grade TEXT,
+    qty INTEGER,
+    entered_by TEXT
+)
+''')
 
-    if st.button("Login"):
-        if username == USERNAME and password == PASSWORD:
-            st.session_state.logged_in = True
-            st.success("Login Successful!")
-            st.rerun()
-        else:
-            st.error("Wrong Username or Password")
+conn.commit()
 
-if not st.session_state.logged_in:
-    login()
+# ----------- DEFAULT USERS (5 LOG) ----------
+default_users = {
+    "user1": "123",
+    "user2": "123",
+    "user3": "123",
+    "user4": "123",
+    "user5": "123"
+}
+
+for u, p in default_users.items():
+    c.execute("INSERT OR IGNORE INTO users VALUES (?,?)", (u, p))
+conn.commit()
+
+# ---------------- LOGIN ----------------
+st.sidebar.title("Login")
+
+username = st.sidebar.text_input("Username")
+password = st.sidebar.text_input("Password", type="password")
+
+if st.sidebar.button("Login"):
+    user = c.execute(
+        "SELECT * FROM users WHERE username=? AND password=?",
+        (username, password)
+    ).fetchone()
+
+    if user:
+        st.session_state["user"] = username
+    else:
+        st.sidebar.error("Wrong Login")
+
+if "user" not in st.session_state:
     st.stop()
-from io import BytesIO
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table
-from reportlab.lib import colors
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib import pagesizes
 
-st.set_page_config(page_title="Production Report", layout="wide")
+st.sidebar.success(f"Logged in as {st.session_state['user']}")
 
-DATA_FILE = "data.csv"
+# ---------------- HEADER ----------------
+st.title("🏭 Production System")
 
-# Load data
-if os.path.exists(DATA_FILE):
-    df = pd.read_csv(DATA_FILE)
-else:
-    df = pd.DataFrame(columns=[
-        "Date","Shift","Machine","Size","Board","Thickness",
-        "Paper","Finish","OSR","Agrade","Bgrade","Grand Total"
-    ])
+report_date = st.date_input("Date", date.today())
+shift = st.selectbox("Shift", ["Day", "Night"])
 
-st.title("📋 Production Entry")
+machines = ["Machine 1", "Machine 2", "Machine 3"]
 
-# ---------------------------
-# DATE + SHIFT SIDE BY SIDE
-# ---------------------------
+st.divider()
+
+# ---------------- MACHINE TOTALS ----------------
+st.subheader("Machine Totals")
+
+for m in machines:
+    total = c.execute(
+        "SELECT SUM(qty) FROM production WHERE machine=? AND report_date=? AND shift=?",
+        (m, str(report_date), shift)
+    ).fetchone()[0]
+
+    if total is None:
+        total = 0
+
+    st.write(f"{m} → {total}")
+
+st.divider()
+
+# ---------------- QUICK ENTRY ----------------
+st.subheader("Quick Entry")
+
+selected_machine = st.selectbox("Machine", machines)
+
 col1, col2 = st.columns(2)
 
 with col1:
-    report_date = st.date_input("Date", datetime.today())
+    size = st.text_input("Size")
+    grade = st.selectbox("Grade", ["A", "B", "C"])
 
 with col2:
-    shift = st.selectbox("Shift", ["Morning","Evening","Night"])
+    qty = st.number_input("Quantity", min_value=0)
 
-# ---------------------------
-# MACHINE
-# ---------------------------
-machines = ["Machine 1","Machine 2","Machine 3","Machine 4","Machine 5"]
-machine = st.selectbox("Machine No", machines)
-
-# ---------------------------
-# DETAILS
-# ---------------------------
-size = st.text_input("Size")
-board = st.text_input("Board")
-thickness = st.text_input("Thickness")
-paper = st.text_input("Paper")
-finish = st.text_input("Finish")
-
-# ---------------------------
-# PRODUCTION NUMBERS
-# ---------------------------
-osr = st.text_input("OSR")
-agrade = st.text_input("A Grade")
-bgrade = st.text_input("B Grade")
-
-# Calculate Total
-try:
-    total = float(osr or 0) + float(agrade or 0) + float(bgrade or 0)
-except:
-    total = 0
-
-st.markdown(f"### Grand Total: {total}")
-
-# ---------------------------
-# SAVE BUTTON
-# ---------------------------
 if st.button("Save Entry"):
-
-    new_row = {
-        "Date": report_date,
-        "Shift": shift,
-        "Machine": machine,
-        "Size": size,
-        "Board": board,
-        "Thickness": thickness,
-        "Paper": paper,
-        "Finish": finish,
-        "OSR": osr,
-        "Agrade": agrade,
-        "Bgrade": bgrade,
-        "Grand Total": total
-    }
-
-    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-    df.to_csv(DATA_FILE, index=False)
-    st.success("Entry Saved Successfully!")
-
-# ---------------------------
-# REPORT SECTION
-# ---------------------------
-st.markdown("## 📊 Production Report")
-
-if df.empty:
-    st.info("No data available.")
-else:
-
-    # Show full table
-    st.dataframe(df, use_container_width=True)
-
-    st.markdown("---")
-    st.markdown("### Select Entry to Edit or Delete")
-
-    # Create selection list
-    selection = st.selectbox(
-        "Select Entry",
-        df.index,
-        format_func=lambda x: f"{df.loc[x,'Date']} | {df.loc[x,'Machine']} | Total: {df.loc[x,'Grand Total']}"
+    c.execute(
+        "INSERT INTO production (machine, report_date, shift, size, grade, qty, entered_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (selected_machine, str(report_date), shift, size, grade, qty, st.session_state["user"])
     )
+    conn.commit()
+    st.success("Saved Successfully!")
 
-    row = df.loc[selection]
+st.divider()
 
-    st.markdown("### ✏️ Edit Entry")
+# ---------------- REPORT ----------------
+st.subheader("Report")
 
-    col1, col2 = st.columns(2)
+df = pd.read_sql_query(
+    "SELECT * FROM production WHERE report_date=? AND shift=?",
+    conn,
+    params=(str(report_date), shift)
+)
 
-    with col1:
-        new_size = st.text_input("Size", row["Size"])
-        new_board = st.text_input("Board", row["Board"])
-        new_osr = st.text_input("OSR", row["OSR"])
+st.dataframe(df)
 
-    with col2:
-        new_agrade = st.text_input("A Grade", row["Agrade"])
-        new_bgrade = st.text_input("B Grade", row["Bgrade"])
-
-    try:
-        new_total = float(new_osr or 0) + float(new_agrade or 0) + float(new_bgrade or 0)
-    except:
-        new_total = 0
-
-    st.write("Updated Total:", new_total)
-
-    col3, col4 = st.columns(2)
-
-    if col3.button("Update Entry"):
-        df.at[selection, "Size"] = new_size
-        df.at[selection, "Board"] = new_board
-        df.at[selection, "OSR"] = new_osr
-        df.at[selection, "Agrade"] = new_agrade
-        df.at[selection, "Bgrade"] = new_bgrade
-        df.at[selection, "Grand Total"] = new_total
-
-        df.to_csv(DATA_FILE, index=False)
-        st.success("Updated Successfully!")
-        st.rerun()
-
-    if col4.button("Delete Entry"):
-        df = df.drop(selection)
-        df.to_csv(DATA_FILE, index=False)
-        st.warning("Deleted Successfully!")
-        st.rerun()
-    # CSV Download
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("Download CSV", csv, "report.csv", "text/csv")
-
-    # Excel Download
-    excel_buffer = BytesIO()
-    df.to_excel(excel_buffer, index=False)
-    st.download_button(
-        "Download Excel",
-        excel_buffer.getvalue(),
-        "report.xlsx",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
-    # PDF Download
- styles = getSampleStyleSheet()
-
-    pdf_buffer = BytesIO()
-    doc = SimpleDocTemplate(pdf_buffer, pagesize=pagesizes.A4)
-
-    elements = []
-
-    # Heading
-    heading = Paragraph("<b>DAILY PRODUCTION REPORT</b>", styles["Title"])
-    elements.append(heading)
-    elements.append(Spacer(1, 20))
-
-    # Table
-    table_data = [df.columns.tolist()] + df.values.tolist()
-
-    table = Table(table_data)
-    table.setStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.grey),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.black)
-    ])
-
-    elements.append(table)
-
-    doc.build(elements)
-
-    st.download_button(
-        "Download PDF",
+if st.button("Download Excel"):
+    file_name = "production_report.xlsx"
+    df.to_excel(file_name, index=False)
+    st.success("Excel Ready!")
         pdf_buffer.getvalue(),
         "production_report.pdf",
         "application/pdf"

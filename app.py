@@ -115,21 +115,3 @@ if st.button("Save Entry"):
 st.divider()
 
 # ---------------- REPORT ----------------
-st.subheader("Report")
-
-df = pd.read_sql_query(
-    "SELECT * FROM production WHERE report_date=? AND shift=?",
-    conn,
-    params=(str(report_date), shift)
-)
-
-st.dataframe(df)
-
-if st.button("Download Excel"):
-    file_name = "production_report.xlsx"
-    df.to_excel(file_name, index=False)
-    st.success("Excel Ready!")
-      
-        "production_report.pdf",
-        "application/pdf"
-    )

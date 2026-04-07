@@ -129,7 +129,7 @@ if st.button("Download Excel"):
     file_name = "production_report.xlsx"
     df.to_excel(file_name, index=False)
     st.success("Excel Ready!")
-        pdf_buffer.getvalue(),
+      
         "production_report.pdf",
         "application/pdf"
     )

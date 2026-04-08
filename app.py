@@ -115,3 +115,25 @@ if st.button("Save Entry"):
 st.divider()
 
 # ---------------- REPORT ----------------
+# ---------------- REPORT ----------------
+st.subheader("Production Report")
+
+df = pd.read_sql_query(
+    "SELECT * FROM production WHERE report_date=? AND shift=?",
+    conn,
+    params=(str(report_date), shift)
+)
+
+if not df.empty:
+    st.dataframe(df)
+
+    # Download option
+    csv = df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        "Download CSV",
+        csv,
+        "production_report.csv",
+        "text/csv"
+    )
+else:
+    st.info("No data found for selected date & shift")

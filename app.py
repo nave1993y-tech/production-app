@@ -4,7 +4,12 @@ import pandas as pd
 from datetime import date
 
 # ---------------- DATABASE ----------------
-conn = sqlite3.connect("production.db", check_same_thread=False)
+st.set_page_config(
+    page_title="Production System",
+    page_icon="🏭",
+    layout="wide",   # better responsiveness
+    initial_sidebar_state="collapsed"  # hides sidebar on mobile
+)conn = sqlite3.connect("production.db", check_same_thread=False)
 c = conn.cursor()
 
 c.execute('''
@@ -70,7 +75,7 @@ st.title("🏭 Production System")
 report_date = st.date_input("Date", date.today())
 shift = st.selectbox("Shift", ["Day", "Night"])
 
-machines = ["Machine 1", "Machine 2", "Machine 3"]
+machines = ["Machine 1", "Machine 2", "Machine 3","Machine 4","Machine 5","Machine 6","Machine 7"]
 
 st.divider()
 

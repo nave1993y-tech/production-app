@@ -9,7 +9,7 @@ st.set_page_config(
     page_icon="🏭",
     layout="wide",   # better responsiveness
     initial_sidebar_state="collapsed"  # hides sidebar on mobile
-)conn = sqlite3.connect("production.db", check_same_thread=False)
+conn = sqlite3.connect("production.db", check_same_thread=False)
 c = conn.cursor()
 
 c.execute('''

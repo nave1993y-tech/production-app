@@ -90,7 +90,7 @@ with col1:
 with col2:
     shift = st.selectbox("🌙 Shift", ["Day", "Night"])
 
-machines = ["Machine 1", "Machine 2", "Machine 3"]
+machines = ["Machine 1", "Machine 2", "Machine 3", "Machine 4", "Machine 5", "Machine 6", "Machine 7" ]
 
 st.divider()
 

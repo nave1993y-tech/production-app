@@ -39,7 +39,7 @@ conn.commit()
 
 # ---------------- DEFAULT USERS ----------------
 default_users = {
-    "user1": "123",
+    "user1": "124",
     "user2": "123",
     "user3": "123",
     "user4": "123",

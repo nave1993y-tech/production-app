@@ -12,15 +12,17 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# DATABASE CONNECTION
+# DATABASE CONNECTION - FIX FOR LOCKING ISSUES
 @st.cache_resource
 def get_connection():
-    conn = sqlite3.connect("production.db", check_same_thread=False, timeout=10)
+    conn = sqlite3.connect("production.db", check_same_thread=False, timeout=30)
+    conn.isolation_level = None  # Autocommit mode
     return conn
 
 conn = get_connection()
 c = conn.cursor()
 
+# CREATE TABLES WITH CORRECT SCHEMA
 c.execute('''
 CREATE TABLE IF NOT EXISTS users (
     username TEXT PRIMARY KEY,
@@ -40,13 +42,12 @@ CREATE TABLE IF NOT EXISTS production (
     osr TEXT,
     qty_a INTEGER,
     qty_b INTEGER,
-    report_date DATE,
+    report_date TEXT,
     shift TEXT,
-    entered_by TEXT
+    entered_by TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )
 ''')
-
-conn.commit()
 
 # DEFAULT USERS
 default_users = {
@@ -59,7 +60,6 @@ default_users = {
 
 for u, p in default_users.items():
     c.execute("INSERT OR IGNORE INTO users VALUES (?,?)", (u, p))
-conn.commit()
 
 # LOGIN SCREEN
 if "user" not in st.session_state:
@@ -108,31 +108,36 @@ osrs = ["OSR 1", "OSR 2", "OSR 3"]
 
 st.divider()
 
-# DASHBOARD
+# DASHBOARD - SAFE DATABASE QUERY
 st.subheader("📊 Production Dashboard")
 
 total_a = 0
 total_b = 0
 cols = st.columns(len(machines))
 
+report_date_str = str(report_date)  # Convert to string for consistent querying
+
 for i, m in enumerate(machines):
-    result = c.execute(
-        "SELECT SUM(qty_a), SUM(qty_b) FROM production WHERE machine=? AND report_date=? AND shift=?",
-        (m, report_date.isoformat(), shift)
-    ).fetchone()
+    try:
+        result = c.execute(
+            "SELECT SUM(qty_a), SUM(qty_b) FROM production WHERE machine=? AND report_date=? AND shift=?",
+            (m, report_date_str, shift)
+        ).fetchone()
 
-    qty_a = result[0] or 0
-    qty_b = result[1] or 0
-    total = qty_a + qty_b
-    total_a += qty_a
-    total_b += qty_b
+        qty_a = result[0] if result[0] else 0
+        qty_b = result[1] if result[1] else 0
+        total = qty_a + qty_b
+        total_a += qty_a
+        total_b += qty_b
 
-    cols[i].metric(m, total)
+        cols[i].metric(m, total)
+    except Exception as e:
+        cols[i].error("Error")
 
 col_total1, col_total2, col_total3 = st.columns(3)
-col_total1.metric("🏭 Total A", total_a)
-col_total2.metric("🏭 Total B", total_b)
-col_total3.metric("🏭 Total (A+B)", total_a + total_b)
+col_total1.metric("🏭 Total A", int(total_a))
+col_total2.metric("🏭 Total B", int(total_b))
+col_total3.metric("🏭 Total (A+B)", int(total_a + total_b))
 
 st.divider()
 
@@ -191,15 +196,14 @@ with st.expander("➕ Add Production Entry", expanded=True):
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (st.session_state.selected_machine, st.session_state.selected_size, selected_board, 
                  selected_thickness, selected_paper, selected_finish, selected_osr, 
-                 qty_a, qty_b, report_date.isoformat(), shift, st.session_state["user"])
+                 int(qty_a), int(qty_b), report_date_str, shift, st.session_state["user"])
             )
-            conn.commit()
-            st.success("✅ Saved!")
+            st.success("✅ Entry saved successfully!")
             st.session_state.qty_a_input = 0
             st.session_state.qty_b_input = 0
             st.rerun()
         except Exception as e:
-            st.error(f"❌ Error: {str(e)}")
+            st.error(f"❌ Error saving entry: {str(e)}")
 
 st.divider()
 
@@ -209,7 +213,7 @@ st.subheader("📋 Production Report")
 filter_machine = st.selectbox("🔍 Filter Machine", ["All"] + machines)
 
 query = "SELECT id, machine, size, board, thickness, paper, finish, osr, qty_a, qty_b, report_date, shift, entered_by FROM production WHERE report_date=? AND shift=?"
-params = [report_date.isoformat(), shift]
+params = [report_date_str, shift]
 
 if filter_machine != "All":
     query += " AND machine=?"
@@ -237,9 +241,9 @@ try:
             use_container_width=True
         )
     else:
-        st.info("No data found")
+        st.info("📊 No data found for selected date and shift")
 except Exception as e:
-    st.error(f"❌ Error: {str(e)}")
+    st.error(f"❌ Error loading report: {str(e)}")
 
 st.divider()
 

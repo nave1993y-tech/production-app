@@ -26,11 +26,16 @@ c.execute('''
 CREATE TABLE IF NOT EXISTS production (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     machine TEXT,
+    size TEXT,
+    board TEXT,
+    thickness TEXT,
+    paper TEXT,
+    finish TEXT,
+    osr TEXT,
+    qty_a INTEGER,
+    qty_b INTEGER,
     report_date TEXT,
     shift TEXT,
-    size TEXT,
-    grade TEXT,
-    qty INTEGER,
     entered_by TEXT
 )
 ''')
@@ -90,47 +95,121 @@ with col1:
 with col2:
     shift = st.selectbox("🌙 Shift", ["Day", "Night"])
 
-machines = ["Machine 1", "Machine 2", "Machine 3", "Machine 4", "Machine 5", "Machine 6", "Machine 7" ]
+machines = ["Machine 1", "Machine 2", "Machine 3", "Machine 4", "Machine 5", "Machine 6", "Machine 7"]
+sizes = ["Size 1", "Size 2", "Size 3", "Size 4"]
+boards = ["Board A", "Board B", "Board C", "Board D"]
+thickness = ["1mm", "2mm", "3mm", "4mm", "5mm"]
+papers = ["Paper A", "Paper B", "Paper C"]
+finishes = ["Gloss", "Matte", "Semi-Gloss"]
+osrs = ["OSR 1", "OSR 2", "OSR 3"]
 
 st.divider()
 
 # ---------------- DASHBOARD ----------------
 st.subheader("📊 Production Dashboard")
 
-total_all = 0
+total_a = 0
+total_b = 0
 
 cols = st.columns(len(machines))
 
 for i, m in enumerate(machines):
-    total = c.execute(
-        "SELECT SUM(qty) FROM production WHERE machine=? AND report_date=? AND shift=?",
+    result = c.execute(
+        "SELECT SUM(qty_a), SUM(qty_b) FROM production WHERE machine=? AND report_date=? AND shift=?",
         (m, str(report_date), shift)
-    ).fetchone()[0]
+    ).fetchone()
 
-    total = total or 0
-    total_all += total
+    qty_a = result[0] or 0
+    qty_b = result[1] or 0
+    total = qty_a + qty_b
+    total_a += qty_a
+    total_b += qty_b
 
     cols[i].metric(m, total)
 
-st.metric("🏭 Total Production", total_all)
+col_total1, col_total2, col_total3 = st.columns(3)
+col_total1.metric("🏭 Total Production (A)", total_a)
+col_total2.metric("🏭 Total Production (B)", total_b)
+col_total3.metric("🏭 Total Production (A+B)", total_a + total_b)
 
 st.divider()
+
+# ---------------- SESSION STATE FOR FORM PERSISTENCE ----------------
+if "selected_machine" not in st.session_state:
+    st.session_state.selected_machine = machines[0]
+if "selected_size" not in st.session_state:
+    st.session_state.selected_size = sizes[0]
 
 # ---------------- ENTRY FORM ----------------
 with st.expander("➕ Add Production Entry", expanded=True):
 
-    selected_machine = st.selectbox("Machine", machines)
-    size = st.text_input("Size")
-    grade = st.selectbox("Grade", ["A", "B", "C"])
-    qty = st.number_input("Quantity", min_value=0)
+    # Row 1: Machine + Size (Fixed at top)
+    form_col1, form_col2 = st.columns(2)
+    
+    with form_col1:
+        st.session_state.selected_machine = st.selectbox(
+            "🤖 Machine",
+            machines,
+            index=machines.index(st.session_state.selected_machine),
+            key="machine_select"
+        )
+    
+    with form_col2:
+        st.session_state.selected_size = st.selectbox(
+            "📏 Size",
+            sizes,
+            index=sizes.index(st.session_state.selected_size),
+            key="size_select"
+        )
 
-    if st.button("Save Entry", use_container_width=True):
+    st.markdown("---")
+
+    # Row 2: Board + Thickness
+    form_col3, form_col4 = st.columns(2)
+    
+    with form_col3:
+        selected_board = st.selectbox("📦 Board", boards, key="board_select")
+    
+    with form_col4:
+        selected_thickness = st.selectbox("📐 Thickness", thickness, key="thickness_select")
+
+    # Row 3: Paper + Finish
+    form_col5, form_col6 = st.columns(2)
+    
+    with form_col5:
+        selected_paper = st.selectbox("📄 Paper", papers, key="paper_select")
+    
+    with form_col6:
+        selected_finish = st.selectbox("✨ Finish", finishes, key="finish_select")
+
+    # Row 4: OSR
+    selected_osr = st.selectbox("🔧 OSR", osrs, key="osr_select")
+
+    st.markdown("---")
+
+    # Row 5: Quantity A + Quantity B
+    form_col7, form_col8 = st.columns(2)
+    
+    with form_col7:
+        qty_a = st.number_input("📊 Quantity A", min_value=0, key="qty_a_input")
+    
+    with form_col8:
+        qty_b = st.number_input("📊 Quantity B", min_value=0, key="qty_b_input")
+
+    if st.button("💾 Save Entry", use_container_width=True):
         c.execute(
-            "INSERT INTO production (machine, report_date, shift, size, grade, qty, entered_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (selected_machine, str(report_date), shift, size, grade, qty, st.session_state["user"])
+            """INSERT INTO production 
+            (machine, size, board, thickness, paper, finish, osr, qty_a, qty_b, report_date, shift, entered_by) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (st.session_state.selected_machine, st.session_state.selected_size, selected_board, 
+             selected_thickness, selected_paper, selected_finish, selected_osr, 
+             qty_a, qty_b, str(report_date), shift, st.session_state["user"])
         )
         conn.commit()
         st.success("✅ Saved Successfully!")
+        # Reset only quantity fields after save
+        st.session_state.qty_a_input = 0
+        st.session_state.qty_b_input = 0
         st.rerun()
 
 st.divider()
@@ -138,9 +217,9 @@ st.divider()
 # ---------------- REPORT SECTION ----------------
 st.subheader("📋 Production Report")
 
-filter_machine = st.selectbox("Filter Machine", ["All"] + machines)
+filter_machine = st.selectbox("🔍 Filter Machine", ["All"] + machines)
 
-query = "SELECT * FROM production WHERE report_date=? AND shift=?"
+query = "SELECT id, machine, size, board, thickness, paper, finish, osr, qty_a, qty_b, report_date, shift, entered_by FROM production WHERE report_date=? AND shift=?"
 params = [str(report_date), shift]
 
 if filter_machine != "All":
@@ -150,16 +229,32 @@ if filter_machine != "All":
 df = pd.read_sql_query(query, conn, params=params)
 
 if not df.empty:
-
-    st.dataframe(df, use_container_width=True)
+    # Rename columns for better display
+    df = df.rename(columns={
+        'id': 'ID',
+        'machine': 'Machine',
+        'size': 'Size',
+        'board': 'Board',
+        'thickness': 'Thickness',
+        'paper': 'Paper',
+        'finish': 'Finish',
+        'osr': 'OSR',
+        'qty_a': 'Qty A',
+        'qty_b': 'Qty B',
+        'report_date': 'Date',
+        'shift': 'Shift',
+        'entered_by': 'Entered By'
+    })
+    
+    st.dataframe(df, use_container_width=True, hide_index=True)
 
     # DOWNLOAD CSV
     csv = df.to_csv(index=False).encode('utf-8')
 
     st.download_button(
-        "⬇ Download CSV",
+        "⬇️ Download CSV",
         csv,
-        "production_report.csv",
+        f"production_report_{report_date}.csv",
         "text/csv",
         use_container_width=True
     )
@@ -169,16 +264,28 @@ else:
 
 st.divider()
 
-# ---------------- SIMPLE STYLING ----------------
+# ---------------- ADVANCED STYLING ----------------
 st.markdown("""
 <style>
     .stButton button {
         height: 50px;
         font-size: 16px;
         border-radius: 10px;
+        font-weight: bold;
     }
-    .stTextInput input, .stNumberInput input {
+    .stTextInput input, .stNumberInput input, .stSelectbox select {
         height: 45px;
+    }
+    .stMetric {
+        background-color: #f0f2f6;
+        padding: 15px;
+        border-radius: 10px;
+        text-align: center;
+    }
+    @media (max-width: 768px) {
+        .stColumn {
+            width: 100%;
+        }
     }
 </style>
 """, unsafe_allow_html=True)

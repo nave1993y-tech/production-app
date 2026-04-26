@@ -15,6 +15,7 @@ st.set_page_config(
 conn = sqlite3.connect("production.db", check_same_thread=False)
 c = conn.cursor()
 
+# USERS TABLE
 c.execute('''
 CREATE TABLE IF NOT EXISTS users (
     username TEXT PRIMARY KEY,
@@ -22,6 +23,7 @@ CREATE TABLE IF NOT EXISTS users (
 )
 ''')
 
+# UPDATED PRODUCTION TABLE
 c.execute('''
 CREATE TABLE IF NOT EXISTS production (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,8 +31,13 @@ CREATE TABLE IF NOT EXISTS production (
     report_date TEXT,
     shift TEXT,
     size TEXT,
-    grade TEXT,
-    qty INTEGER,
+    board TEXT,
+    thickness TEXT,
+    paper TEXT,
+    finish TEXT,
+    osr_qty INTEGER,
+    a_grade INTEGER,
+    b_grade INTEGER,
     entered_by TEXT
 )
 ''')
@@ -50,7 +57,7 @@ for u, p in default_users.items():
     c.execute("INSERT OR IGNORE INTO users VALUES (?,?)", (u, p))
 conn.commit()
 
-# ---------------- LOGIN SCREEN ----------------
+# ---------------- LOGIN ----------------
 if "user" not in st.session_state:
 
     st.markdown("## 🔐 Login")
@@ -81,7 +88,7 @@ if st.button("🚪 Logout", use_container_width=True):
 
 st.divider()
 
-# ---------------- TOP FILTERS ----------------
+# ---------------- FILTERS ----------------
 col1, col2 = st.columns(2)
 
 with col1:
@@ -90,7 +97,10 @@ with col1:
 with col2:
     shift = st.selectbox("🌙 Shift", ["Day", "Night"])
 
-machines = ["Machine 1", "Machine 2", "Machine 3", "Machine 4", "Machine 5", "Machine 6", "Machine 7" ]
+machines = [
+    "Machine 1", "Machine 2", "Machine 3",
+    "Machine 4", "Machine 5", "Machine 6", "Machine 7"
+]
 
 st.divider()
 
@@ -98,12 +108,13 @@ st.divider()
 st.subheader("📊 Production Dashboard")
 
 total_all = 0
-
 cols = st.columns(len(machines))
 
 for i, m in enumerate(machines):
     total = c.execute(
-        "SELECT SUM(qty) FROM production WHERE machine=? AND report_date=? AND shift=?",
+        """SELECT SUM(osr_qty + a_grade + b_grade)
+           FROM production
+           WHERE machine=? AND report_date=? AND shift=?""",
         (m, str(report_date), shift)
     ).fetchone()[0]
 
@@ -121,13 +132,35 @@ with st.expander("➕ Add Production Entry", expanded=True):
 
     selected_machine = st.selectbox("Machine", machines)
     size = st.text_input("Size")
-    grade = st.selectbox("Grade", ["A", "B", "C"])
-    qty = st.number_input("Quantity", min_value=0)
+
+    board = st.text_input("Board")
+    thickness = st.text_input("Thickness")
+    paper = st.text_input("Paper")
+    finish = st.text_input("Finish")
+
+    osr_qty = st.number_input("OSR Qty", min_value=0)
+    a_grade = st.number_input("A Grade Qty", min_value=0)
+    b_grade = st.number_input("B Grade Qty", min_value=0)
 
     if st.button("Save Entry", use_container_width=True):
         c.execute(
-            "INSERT INTO production (machine, report_date, shift, size, grade, qty, entered_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (selected_machine, str(report_date), shift, size, grade, qty, st.session_state["user"])
+            """INSERT INTO production 
+            (machine, report_date, shift, size, board, thickness, paper, finish, osr_qty, a_grade, b_grade, entered_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                selected_machine,
+                str(report_date),
+                shift,
+                size,
+                board,
+                thickness,
+                paper,
+                finish,
+                osr_qty,
+                a_grade,
+                b_grade,
+                st.session_state["user"]
+            )
         )
         conn.commit()
         st.success("✅ Saved Successfully!")
@@ -135,7 +168,7 @@ with st.expander("➕ Add Production Entry", expanded=True):
 
 st.divider()
 
-# ---------------- REPORT SECTION ----------------
+# ---------------- REPORT ----------------
 st.subheader("📋 Production Report")
 
 filter_machine = st.selectbox("Filter Machine", ["All"] + machines)
@@ -153,7 +186,6 @@ if not df.empty:
 
     st.dataframe(df, use_container_width=True)
 
-    # DOWNLOAD CSV
     csv = df.to_csv(index=False).encode('utf-8')
 
     st.download_button(
@@ -169,7 +201,7 @@ else:
 
 st.divider()
 
-# ---------------- SIMPLE STYLING ----------------
+# ---------------- STYLE ----------------
 st.markdown("""
 <style>
     .stButton button {

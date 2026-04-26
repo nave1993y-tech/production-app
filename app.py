@@ -2,8 +2,9 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 from datetime import date
+import os
 
-# ---------------- PAGE CONFIG ----------------
+# PAGE CONFIG
 st.set_page_config(
     page_title="Production System",
     page_icon="🏭",
@@ -11,8 +12,13 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ---------------- DATABASE ----------------
-conn = sqlite3.connect("production.db", check_same_thread=False)
+# DATABASE CONNECTION
+@st.cache_resource
+def get_connection():
+    conn = sqlite3.connect("production.db", check_same_thread=False, timeout=10)
+    return conn
+
+conn = get_connection()
 c = conn.cursor()
 
 c.execute('''
@@ -34,7 +40,7 @@ CREATE TABLE IF NOT EXISTS production (
     osr TEXT,
     qty_a INTEGER,
     qty_b INTEGER,
-    report_date TEXT,
+    report_date DATE,
     shift TEXT,
     entered_by TEXT
 )
@@ -42,7 +48,7 @@ CREATE TABLE IF NOT EXISTS production (
 
 conn.commit()
 
-# ---------------- DEFAULT USERS ----------------
+# DEFAULT USERS
 default_users = {
     "user1": "124",
     "user2": "123",
@@ -55,11 +61,9 @@ for u, p in default_users.items():
     c.execute("INSERT OR IGNORE INTO users VALUES (?,?)", (u, p))
 conn.commit()
 
-# ---------------- LOGIN SCREEN ----------------
+# LOGIN SCREEN
 if "user" not in st.session_state:
-
     st.markdown("## 🔐 Login")
-
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
 
@@ -74,10 +78,9 @@ if "user" not in st.session_state:
             st.rerun()
         else:
             st.error("Wrong Username/Password")
-
     st.stop()
 
-# ---------------- HEADER ----------------
+# HEADER
 st.markdown(f"### 👋 Welcome, {st.session_state['user']}")
 
 if st.button("🚪 Logout", use_container_width=True):
@@ -86,7 +89,7 @@ if st.button("🚪 Logout", use_container_width=True):
 
 st.divider()
 
-# ---------------- TOP FILTERS ----------------
+# FILTERS
 col1, col2 = st.columns(2)
 
 with col1:
@@ -105,18 +108,17 @@ osrs = ["OSR 1", "OSR 2", "OSR 3"]
 
 st.divider()
 
-# ---------------- DASHBOARD ----------------
+# DASHBOARD
 st.subheader("📊 Production Dashboard")
 
 total_a = 0
 total_b = 0
-
 cols = st.columns(len(machines))
 
 for i, m in enumerate(machines):
     result = c.execute(
         "SELECT SUM(qty_a), SUM(qty_b) FROM production WHERE machine=? AND report_date=? AND shift=?",
-        (m, str(report_date), shift)
+        (m, report_date.isoformat(), shift)
     ).fetchone()
 
     qty_a = result[0] or 0
@@ -128,143 +130,120 @@ for i, m in enumerate(machines):
     cols[i].metric(m, total)
 
 col_total1, col_total2, col_total3 = st.columns(3)
-col_total1.metric("🏭 Total Production (A)", total_a)
-col_total2.metric("🏭 Total Production (B)", total_b)
-col_total3.metric("🏭 Total Production (A+B)", total_a + total_b)
+col_total1.metric("🏭 Total A", total_a)
+col_total2.metric("🏭 Total B", total_b)
+col_total3.metric("🏭 Total (A+B)", total_a + total_b)
 
 st.divider()
 
-# ---------------- SESSION STATE FOR FORM PERSISTENCE ----------------
+# FORM STATE
 if "selected_machine" not in st.session_state:
     st.session_state.selected_machine = machines[0]
 if "selected_size" not in st.session_state:
     st.session_state.selected_size = sizes[0]
 
-# ---------------- ENTRY FORM ----------------
+# ENTRY FORM
 with st.expander("➕ Add Production Entry", expanded=True):
 
-    # Row 1: Machine + Size (Fixed at top)
     form_col1, form_col2 = st.columns(2)
-    
     with form_col1:
         st.session_state.selected_machine = st.selectbox(
-            "🤖 Machine",
-            machines,
+            "🤖 Machine", machines,
             index=machines.index(st.session_state.selected_machine),
             key="machine_select"
         )
-    
     with form_col2:
         st.session_state.selected_size = st.selectbox(
-            "📏 Size",
-            sizes,
+            "📏 Size", sizes,
             index=sizes.index(st.session_state.selected_size),
             key="size_select"
         )
 
     st.markdown("---")
 
-    # Row 2: Board + Thickness
     form_col3, form_col4 = st.columns(2)
-    
     with form_col3:
         selected_board = st.selectbox("📦 Board", boards, key="board_select")
-    
     with form_col4:
         selected_thickness = st.selectbox("📐 Thickness", thickness, key="thickness_select")
 
-    # Row 3: Paper + Finish
     form_col5, form_col6 = st.columns(2)
-    
     with form_col5:
         selected_paper = st.selectbox("📄 Paper", papers, key="paper_select")
-    
     with form_col6:
         selected_finish = st.selectbox("✨ Finish", finishes, key="finish_select")
 
-    # Row 4: OSR
     selected_osr = st.selectbox("🔧 OSR", osrs, key="osr_select")
 
     st.markdown("---")
 
-    # Row 5: Quantity A + Quantity B
     form_col7, form_col8 = st.columns(2)
-    
     with form_col7:
-        qty_a = st.number_input("📊 Quantity A", min_value=0, key="qty_a_input")
-    
+        qty_a = st.number_input("📊 Quantity A", min_value=0, key="qty_a_input", value=0)
     with form_col8:
-        qty_b = st.number_input("📊 Quantity B", min_value=0, key="qty_b_input")
+        qty_b = st.number_input("📊 Quantity B", min_value=0, key="qty_b_input", value=0)
 
     if st.button("💾 Save Entry", use_container_width=True):
-        c.execute(
-            """INSERT INTO production 
-            (machine, size, board, thickness, paper, finish, osr, qty_a, qty_b, report_date, shift, entered_by) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (st.session_state.selected_machine, st.session_state.selected_size, selected_board, 
-             selected_thickness, selected_paper, selected_finish, selected_osr, 
-             qty_a, qty_b, str(report_date), shift, st.session_state["user"])
-        )
-        conn.commit()
-        st.success("✅ Saved Successfully!")
-        # Reset only quantity fields after save
-        st.session_state.qty_a_input = 0
-        st.session_state.qty_b_input = 0
-        st.rerun()
+        try:
+            c.execute(
+                """INSERT INTO production 
+                (machine, size, board, thickness, paper, finish, osr, qty_a, qty_b, report_date, shift, entered_by) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (st.session_state.selected_machine, st.session_state.selected_size, selected_board, 
+                 selected_thickness, selected_paper, selected_finish, selected_osr, 
+                 qty_a, qty_b, report_date.isoformat(), shift, st.session_state["user"])
+            )
+            conn.commit()
+            st.success("✅ Saved!")
+            st.session_state.qty_a_input = 0
+            st.session_state.qty_b_input = 0
+            st.rerun()
+        except Exception as e:
+            st.error(f"❌ Error: {str(e)}")
 
 st.divider()
 
-# ---------------- REPORT SECTION ----------------
+# REPORT
 st.subheader("📋 Production Report")
 
 filter_machine = st.selectbox("🔍 Filter Machine", ["All"] + machines)
 
 query = "SELECT id, machine, size, board, thickness, paper, finish, osr, qty_a, qty_b, report_date, shift, entered_by FROM production WHERE report_date=? AND shift=?"
-params = [str(report_date), shift]
+params = [report_date.isoformat(), shift]
 
 if filter_machine != "All":
     query += " AND machine=?"
     params.append(filter_machine)
 
-df = pd.read_sql_query(query, conn, params=params)
+query += " ORDER BY id DESC"
 
-if not df.empty:
-    # Rename columns for better display
-    df = df.rename(columns={
-        'id': 'ID',
-        'machine': 'Machine',
-        'size': 'Size',
-        'board': 'Board',
-        'thickness': 'Thickness',
-        'paper': 'Paper',
-        'finish': 'Finish',
-        'osr': 'OSR',
-        'qty_a': 'Qty A',
-        'qty_b': 'Qty B',
-        'report_date': 'Date',
-        'shift': 'Shift',
-        'entered_by': 'Entered By'
-    })
-    
-    st.dataframe(df, use_container_width=True, hide_index=True)
+try:
+    df = pd.read_sql_query(query, conn, params=params)
 
-    # DOWNLOAD CSV
-    csv = df.to_csv(index=False).encode('utf-8')
+    if not df.empty:
+        df = df.rename(columns={
+            'id': 'ID', 'machine': 'Machine', 'size': 'Size',
+            'board': 'Board', 'thickness': 'Thickness', 'paper': 'Paper',
+            'finish': 'Finish', 'osr': 'OSR', 'qty_a': 'Qty A', 'qty_b': 'Qty B',
+            'report_date': 'Date', 'shift': 'Shift', 'entered_by': 'Entered By'
+        })
+        
+        st.dataframe(df, use_container_width=True, hide_index=True)
 
-    st.download_button(
-        "⬇️ Download CSV",
-        csv,
-        f"production_report_{report_date}.csv",
-        "text/csv",
-        use_container_width=True
-    )
-
-else:
-    st.info("No data found")
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            "⬇️ Download CSV", csv,
+            f"production_report_{report_date}.csv", "text/csv",
+            use_container_width=True
+        )
+    else:
+        st.info("No data found")
+except Exception as e:
+    st.error(f"❌ Error: {str(e)}")
 
 st.divider()
 
-# ---------------- ADVANCED STYLING ----------------
+# STYLING
 st.markdown("""
 <style>
     .stButton button {
@@ -281,11 +260,6 @@ st.markdown("""
         padding: 15px;
         border-radius: 10px;
         text-align: center;
-    }
-    @media (max-width: 768px) {
-        .stColumn {
-            width: 100%;
-        }
     }
 </style>
 """, unsafe_allow_html=True)

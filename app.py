@@ -99,12 +99,6 @@ with col2:
     shift = st.selectbox("🌙 Shift", ["Day", "Night"])
 
 machines = ["Machine 1", "Machine 2", "Machine 3", "Machine 4", "Machine 5", "Machine 6", "Machine 7"]
-sizes = ["Size 1", "Size 2", "Size 3", "Size 4"]
-boards = ["Board A", "Board B", "Board C", "Board D"]
-thickness = ["1mm", "2mm", "3mm", "4mm", "5mm"]
-papers = ["Paper A", "Paper B", "Paper C"]
-finishes = ["Gloss", "Matte", "Semi-Gloss"]
-osrs = ["OSR 1", "OSR 2", "OSR 3"]
 
 st.divider()
 
@@ -144,66 +138,105 @@ st.divider()
 # FORM STATE
 if "selected_machine" not in st.session_state:
     st.session_state.selected_machine = machines[0]
-if "selected_size" not in st.session_state:
-    st.session_state.selected_size = sizes[0]
 
 # ENTRY FORM
 with st.expander("➕ Add Production Entry", expanded=True):
 
-    form_col1, form_col2 = st.columns(2)
+    # MOBILE RESPONSIVE - Single Column on Mobile
+    st.subheader("Machine & Size")
+    form_col1, form_col2 = st.columns([1, 1])
+    
     with form_col1:
-        st.session_state.selected_machine = st.selectbox(
+        selected_machine = st.selectbox(
             "🤖 Machine", machines,
-            index=machines.index(st.session_state.selected_machine),
             key="machine_select"
         )
+    
     with form_col2:
-        st.session_state.selected_size = st.selectbox(
-            "📏 Size", sizes,
-            index=sizes.index(st.session_state.selected_size),
-            key="size_select"
-        )
+        size_input = st.text_input("📏 Size", placeholder="e.g., Size 1", key="size_input")
 
     st.markdown("---")
-
-    form_col3, form_col4 = st.columns(2)
-    with form_col3:
-        selected_board = st.selectbox("📦 Board", boards, key="board_select")
-    with form_col4:
-        selected_thickness = st.selectbox("📐 Thickness", thickness, key="thickness_select")
-
-    form_col5, form_col6 = st.columns(2)
-    with form_col5:
-        selected_paper = st.selectbox("📄 Paper", papers, key="paper_select")
-    with form_col6:
-        selected_finish = st.selectbox("✨ Finish", finishes, key="finish_select")
-
-    selected_osr = st.selectbox("🔧 OSR", osrs, key="osr_select")
+    
+    # Board, Thickness, Paper - 3 columns or responsive
+    st.subheader("Materials & Specifications")
+    col_board, col_thick, col_paper = st.columns(3)
+    
+    with col_board:
+        board_input = st.text_input("📦 Board", placeholder="e.g., Board A", key="board_input")
+    
+    with col_thick:
+        thickness_input = st.text_input("📐 Thickness", placeholder="e.g., 2mm", key="thickness_input")
+    
+    with col_paper:
+        paper_input = st.text_input("📄 Paper", placeholder="e.g., Paper A", key="paper_input")
 
     st.markdown("---")
+    
+    # Finish & OSR
+    st.subheader("Finish & Settings")
+    col_finish, col_osr = st.columns(2)
+    
+    with col_finish:
+        finish_input = st.text_input("✨ Finish", placeholder="e.g., Gloss", key="finish_input")
+    
+    with col_osr:
+        osr_input = st.text_input("🔧 OSR", placeholder="e.g., OSR 1", key="osr_input")
 
-    form_col7, form_col8 = st.columns(2)
-    with form_col7:
-        qty_a = st.number_input("📊 Quantity A", min_value=0, key="qty_a_input", value=0)
-    with form_col8:
-        qty_b = st.number_input("📊 Quantity B", min_value=0, key="qty_b_input", value=0)
+    st.markdown("---")
+    
+    # QUANTITIES - IMPORTANT SECTION
+    st.subheader("📊 Production Quantities")
+    qty_col1, qty_col2 = st.columns(2)
+    
+    with qty_col1:
+        qty_a = st.number_input("📊 Quantity A", min_value=0, key="qty_a_input", value=0, step=1)
+    
+    with qty_col2:
+        qty_b = st.number_input("📊 Quantity B", min_value=0, key="qty_b_input", value=0, step=1)
 
+    st.markdown("---")
+    
     if st.button("💾 Save Entry", use_container_width=True):
-        try:
-            c.execute(
-                """INSERT INTO production 
-                (machine, size, board, thickness, paper, finish, osr, qty_a, qty_b, report_date, shift, entered_by) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (st.session_state.selected_machine, st.session_state.selected_size, selected_board, 
-                 selected_thickness, selected_paper, selected_finish, selected_osr, 
-                 int(qty_a), int(qty_b), report_date_str, shift, st.session_state["user"])
-            )
-            st.success("✅ Entry saved successfully!")
-            st.session_state.qty_a_input = 0
-            st.session_state.qty_b_input = 0
-            st.rerun()
-        except Exception as e:
-            st.error(f"❌ Error saving entry: {str(e)}")
+        # VALIDATION
+        if not selected_machine:
+            st.error("❌ Please select a Machine")
+        elif not size_input.strip():
+            st.error("❌ Please enter Size")
+        elif not board_input.strip():
+            st.error("❌ Please enter Board")
+        elif not thickness_input.strip():
+            st.error("❌ Please enter Thickness")
+        elif not paper_input.strip():
+            st.error("❌ Please enter Paper")
+        elif not finish_input.strip():
+            st.error("❌ Please enter Finish")
+        elif not osr_input.strip():
+            st.error("❌ Please enter OSR")
+        elif qty_a == 0 and qty_b == 0:
+            st.error("❌ Please enter Quantity A or B")
+        else:
+            try:
+                c.execute(
+                    """INSERT INTO production 
+                    (machine, size, board, thickness, paper, finish, osr, qty_a, qty_b, report_date, shift, entered_by) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (selected_machine, size_input.strip(), board_input.strip(), 
+                     thickness_input.strip(), paper_input.strip(), finish_input.strip(), osr_input.strip(), 
+                     int(qty_a), int(qty_b), report_date_str, shift, st.session_state["user"])
+                )
+                st.success("✅ Entry saved successfully!")
+                # Clear inputs
+                st.session_state.size_input = ""
+                st.session_state.board_input = ""
+                st.session_state.thickness_input = ""
+                st.session_state.paper_input = ""
+                st.session_state.finish_input = ""
+                st.session_state.osr_input = ""
+                st.session_state.qty_a_input = 0
+                st.session_state.qty_b_input = 0
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Error saving entry: {str(e)}")
 
 st.divider()
 
@@ -247,24 +280,66 @@ except Exception as e:
 
 st.divider()
 
-# STYLING
+# STYLING - MOBILE RESPONSIVE
 st.markdown("""
 <style>
+    /* Button Styling */
     .stButton button {
         height: 50px;
         font-size: 16px;
         border-radius: 10px;
         font-weight: bold;
+        transition: all 0.3s ease;
     }
-    .stTextInput input, .stNumberInput input, .stSelectbox select {
+    
+    .stButton button:hover {
+        transform: scale(1.02);
+    }
+    
+    /* Input Fields */
+    .stTextInput input, 
+    .stNumberInput input, 
+    .stSelectbox select {
         height: 45px;
+        border-radius: 8px;
     }
+    
+    /* Metrics */
     .stMetric {
         background-color: #f0f2f6;
         padding: 15px;
         border-radius: 10px;
         text-align: center;
     }
+    
+    /* Divider */
+    hr {
+        margin: 20px 0;
+    }
+    
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+        .stButton button {
+            height: 45px;
+            font-size: 14px;
+        }
+        
+        .stTextInput input, 
+        .stNumberInput input, 
+        .stSelectbox select {
+            height: 40px;
+            font-size: 14px;
+        }
+        
+        .stMetric {
+            padding: 10px;
+        }
+    }
+    
+    /* Expander styling */
+    .streamlit-expanderHeader {
+        background-color: #e8f0f7;
+        border-radius: 8px;
+    }
 </style>
 """, unsafe_allow_html=True)
-

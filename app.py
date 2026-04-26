@@ -1,216 +1,91 @@
 import streamlit as st
-import sqlite3
 import pandas as pd
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 from datetime import date
 
-# ---------------- PAGE CONFIG ----------------
-st.set_page_config(
-    page_title="Production System",
-    page_icon="🏭",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
-
-# ---------------- DATABASE ----------------
-conn = sqlite3.connect("production.db", check_same_thread=False)
-c = conn.cursor()
-
-# USERS TABLE
-c.execute('''
-CREATE TABLE IF NOT EXISTS users (
-    username TEXT PRIMARY KEY,
-    password TEXT
-)
-''')
-
-# UPDATED PRODUCTION TABLE
-c.execute('''
-CREATE TABLE IF NOT EXISTS production (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    machine TEXT,
-    report_date TEXT,
-    shift TEXT,
-    size TEXT,
-    board TEXT,
-    thickness TEXT,
-    paper TEXT,
-    finish TEXT,
-    osr_qty INTEGER,
-    a_grade INTEGER,
-    b_grade INTEGER,
-    entered_by TEXT
-)
-''')
-
-conn.commit()
-
-# ---------------- DEFAULT USERS ----------------
-default_users = {
-    "user1": "124",
-    "user2": "123",
-    "user3": "123",
-    "user4": "123",
-    "user5": "123"
-}
-
-for u, p in default_users.items():
-    c.execute("INSERT OR IGNORE INTO users VALUES (?,?)", (u, p))
-conn.commit()
-
-# ---------------- LOGIN ----------------
-if "user" not in st.session_state:
-
-    st.markdown("## 🔐 Login")
-
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-
-    if st.button("Login", use_container_width=True):
-        user = c.execute(
-            "SELECT * FROM users WHERE username=? AND password=?",
-            (username, password)
-        ).fetchone()
-
-        if user:
-            st.session_state["user"] = username
-            st.rerun()
-        else:
-            st.error("Wrong Username/Password")
-
-    st.stop()
-
-# ---------------- HEADER ----------------
-st.markdown(f"### 👋 Welcome, {st.session_state['user']}")
-
-if st.button("🚪 Logout", use_container_width=True):
-    del st.session_state["user"]
-    st.rerun()
-
-st.divider()
-
-# ---------------- FILTERS ----------------
-col1, col2 = st.columns(2)
-
-with col1:
-    report_date = st.date_input("📅 Date", date.today())
-
-with col2:
-    shift = st.selectbox("🌙 Shift", ["Day", "Night"])
-
-machines = [
-    "Machine 1", "Machine 2", "Machine 3",
-    "Machine 4", "Machine 5", "Machine 6", "Machine 7"
+# ---------- GOOGLE SHEETS ----------
+scope = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive"
 ]
 
-st.divider()
+creds = ServiceAccountCredentials.from_json_keyfile_name("creds.json", scope)
+client = gspread.authorize(creds)
 
-# ---------------- DASHBOARD ----------------
-st.subheader("📊 Production Dashboard")
+sheet = client.open("ProductionData").sheet1
 
-total_all = 0
-cols = st.columns(len(machines))
+# ---------- SESSION ----------
+if "size" not in st.session_state:
+    st.session_state.size = ""
+if "board" not in st.session_state:
+    st.session_state.board = ""
+if "thickness" not in st.session_state:
+    st.session_state.thickness = ""
 
-for i, m in enumerate(machines):
-    total = c.execute(
-        """SELECT SUM(osr_qty + a_grade + b_grade)
-           FROM production
-           WHERE machine=? AND report_date=? AND shift=?""",
-        (m, str(report_date), shift)
-    ).fetchone()[0]
+# ---------- UI ----------
+st.title("📱 Production Entry (Online)")
 
-    total = total or 0
-    total_all += total
+col1, col2, col3 = st.columns(3)
+with col1:
+    entry_date = st.date_input("Date", value=date.today())
+with col2:
+    shift = st.text_input("Shift")
+with col3:
+    machine = st.selectbox("Machine", ["M1","M2","M3","M4","M5","M6","M7"])
 
-    cols[i].metric(m, total)
+st.markdown("### 🔁 Static Fields")
+col4, col5, col6 = st.columns(3)
+with col4:
+    st.session_state.size = st.text_input("Size", value=st.session_state.size)
+with col5:
+    st.session_state.board = st.text_input("Board", value=st.session_state.board)
+with col6:
+    st.session_state.thickness = st.text_input("Thickness", value=st.session_state.thickness)
 
-st.metric("🏭 Total Production", total_all)
+st.markdown("### ✍️ Entry")
 
-st.divider()
-
-# ---------------- ENTRY FORM ----------------
-with st.expander("➕ Add Production Entry", expanded=True):
-
-    selected_machine = st.selectbox("Machine", machines)
-    size = st.text_input("Size")
-
-    board = st.text_input("Board")
-    thickness = st.text_input("Thickness")
+col7, col8, col9, col10, col11 = st.columns(5)
+with col7:
     paper = st.text_input("Paper")
+with col8:
     finish = st.text_input("Finish")
+with col9:
+    osr = st.number_input("OSR", min_value=0)
+with col10:
+    a = st.number_input("A Qty", min_value=0)
+with col11:
+    b = st.number_input("B Qty", min_value=0)
 
-    osr_qty = st.number_input("OSR Qty", min_value=0)
-    a_grade = st.number_input("A Grade Qty", min_value=0)
-    b_grade = st.number_input("B Grade Qty", min_value=0)
+# ---------- SAVE ----------
+if st.button("💾 Save"):
+    sheet.append_row([
+        str(entry_date), shift, machine,
+        st.session_state.size,
+        st.session_state.board,
+        st.session_state.thickness,
+        paper, finish, osr, a, b
+    ])
+    st.success("Saved!")
+    st.rerun()
 
-    if st.button("Save Entry", use_container_width=True):
-        c.execute(
-            """INSERT INTO production 
-            (machine, report_date, shift, size, board, thickness, paper, finish, osr_qty, a_grade, b_grade, entered_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                selected_machine,
-                str(report_date),
-                shift,
-                size,
-                board,
-                thickness,
-                paper,
-                finish,
-                osr_qty,
-                a_grade,
-                b_grade,
-                st.session_state["user"]
-            )
-        )
-        conn.commit()
-        st.success("✅ Saved Successfully!")
-        st.rerun()
-
-st.divider()
-
-# ---------------- REPORT ----------------
-st.subheader("📋 Production Report")
-
-filter_machine = st.selectbox("Filter Machine", ["All"] + machines)
-
-query = "SELECT * FROM production WHERE report_date=? AND shift=?"
-params = [str(report_date), shift]
-
-if filter_machine != "All":
-    query += " AND machine=?"
-    params.append(filter_machine)
-
-df = pd.read_sql_query(query, conn, params=params)
+# ---------- LOAD DATA ----------
+data = sheet.get_all_records()
+df = pd.DataFrame(data)
 
 if not df.empty:
+    df_today = df[df["Date"] == str(entry_date)]
 
-    st.dataframe(df, use_container_width=True)
+    st.markdown("## 📋 Data")
+    st.dataframe(df_today, use_container_width=True)
 
-    csv = df.to_csv(index=False).encode('utf-8')
+    # ---------- TOTAL ----------
+    st.markdown("## 📊 Totals")
+    st.success(f"""
+    OSR: {df_today['OSR'].sum()}  
+    A: {df_today['A'].sum()}  
+    B: {df_today['B'].sum()}
+    """)
 
-    st.download_button(
-        "⬇ Download CSV",
-        csv,
-        "production_report.csv",
-        "text/csv",
-        use_container_width=True
-    )
-
-else:
-    st.info("No data found")
-
-st.divider()
-
-# ---------------- STYLE ----------------
-st.markdown("""
-<style>
-    .stButton button {
-        height: 50px;
-        font-size: 16px;
-        border-radius: 10px;
-    }
-    .stTextInput input, .stNumberInput input {
-        height: 45px;
-    }
-</style>
-""", unsafe_allow_html=True)
+    # ---------- EXPORT ----------
+    st.download_button("📥 Download Excel", df_today.to_csv(index=False), "report.csv")

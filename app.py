@@ -1,78 +1,230 @@
-import streamlit as st
-import pandas as pd
-from fpdf import FPDF
-import os
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Production App</title>
 
-FILE = "data.xlsx"
+<style>
+body {
+    font-family: Arial;
+    background: #f5f7fb;
+    padding: 10px;
+}
 
-# Load data
-if os.path.exists(FILE):
-    df = pd.read_excel(FILE)
-else:
-    df = pd.DataFrame(columns=[
-        "Day/Night","Machine","Size","Board type",
-        "Thickness","Paper","Finish","osr",
-        "A Grade","B Grade","Qty"
-    ])
+.container {
+    background: white;
+    padding: 15px;
+    border-radius: 10px;
+}
 
-st.title("📊 Daily Production - Day & Night")
+h1 {
+    text-align: center;
+    color: #1f4e79;
+}
 
-# Form
-with st.form("entry_form"):
-    col1, col2, col3 = st.columns(3)
+/* GRID */
+.grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
 
-    day = col1.selectbox("Day/Night", ["Day","Night"])
-    machine = col2.text_input("Machine")
-    size = col3.text_input("Size")
+input {
+    width: 100%;
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+}
 
-    board = col1.text_input("Board type")
-    thickness = col2.text_input("Thickness")
-    paper = col3.text_input("Paper")
+/* BUTTONS */
+.btn {
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    color: white;
+    width: 100%;
+    font-weight: bold;
+}
 
-    finish = col1.text_input("Finish")
-    osr = col2.number_input("OSR", 0)
-    a = col3.number_input("A Grade", 0)
+.save { background: green; }
+.reset { background: red; }
 
-    b = col1.number_input("B Grade", 0)
-    qty = col2.number_input("Qty", 0)
+/* TABLE */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
 
-    submit = st.form_submit_button("Save")
+th, td {
+    border: 1px solid #ddd;
+    padding: 6px;
+    font-size: 12px;
+}
 
-    if submit:
-        new_row = pd.DataFrame([[day,machine,size,board,thickness,paper,finish,osr,a,b,qty]],
-        columns=df.columns)
+th {
+    background: #dbe5f1;
+}
 
-        df = pd.concat([df,new_row], ignore_index=True)
-        df.to_excel(FILE, index=False)
-        st.success("Saved!")
+/* ACTION BUTTONS */
+.edit { background: blue; color: white; }
+.delete { background: red; color: white; }
 
-# Show table
-st.subheader("📋 Data")
-st.dataframe(df, use_container_width=True)
+/* DOWNLOAD */
+.download {
+    background: purple;
+    margin-top: 20px;
+}
+</style>
+</head>
 
-# Delete
-row_delete = st.number_input("Delete Row No.", min_value=1, step=1)
-if st.button("Delete"):
-    df = df.drop(row_delete-1).reset_index(drop=True)
-    df.to_excel(FILE, index=False)
-    st.warning("Deleted!")
+<body>
 
-# Download Excel
-st.download_button(
-    "Download Excel",
-    df.to_excel("temp.xlsx", index=False),
-    file_name="production.xlsx"
-)
+<div class="container">
 
-# PDF
-if st.button("Download PDF"):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=8)
+<h1>Daily production Day and Night</h1>
 
-    for i, row in df.iterrows():
-        pdf.cell(200, 5, txt=str(row.values), ln=True)
+<div class="grid">
+<input placeholder="S.no" id="sno">
+<input placeholder="Day/Night" id="shift">
+<input placeholder="Machine" id="machine">
 
-    pdf.output("report.pdf")
-    with open("report.pdf", "rb") as f:
-        st.download_button("Download PDF File", f, file_name="report.pdf")
+<input placeholder="Size" id="size">
+<input placeholder="Board Type" id="board">
+<input placeholder="Thickness" id="thickness">
+
+<input placeholder="Paper" id="paper">
+<input placeholder="Finish" id="finish">
+<input placeholder="OSR" id="osr">
+
+<input placeholder="A Grade" id="a">
+<input placeholder="B Grade" id="b">
+<input placeholder="Qty" id="qty">
+</div>
+
+<br>
+
+<button class="btn save" onclick="saveData()">SAVE</button>
+<button class="btn reset" onclick="resetData()">RESET</button>
+
+<h3>Saved Entries</h3>
+
+<table id="table">
+<tr>
+<th>S.no</th>
+<th>Shift</th>
+<th>Machine</th>
+<th>Size</th>
+<th>Board</th>
+<th>Thickness</th>
+<th>Paper</th>
+<th>Finish</th>
+<th>OSR</th>
+<th>A</th>
+<th>B</th>
+<th>Qty</th>
+<th>Action</th>
+</tr>
+</table>
+
+<button class="btn download" onclick="downloadCSV()">Download Excel</button>
+
+</div>
+
+<script>
+let data = [];
+
+function saveData() {
+    let row = {
+        sno: sno.value,
+        shift: shift.value,
+        machine: machine.value,
+        size: size.value,
+        board: board.value,
+        thickness: thickness.value,
+        paper: paper.value,
+        finish: finish.value,
+        osr: osr.value,
+        a: a.value,
+        b: b.value,
+        qty: qty.value
+    };
+
+    data.push(row);
+    renderTable();
+}
+
+function renderTable() {
+    let table = document.getElementById("table");
+    table.innerHTML = table.rows[0].outerHTML;
+
+    data.forEach((d, i) => {
+        let row = table.insertRow();
+
+        row.innerHTML = `
+        <td>${d.sno}</td>
+        <td>${d.shift}</td>
+        <td>${d.machine}</td>
+        <td>${d.size}</td>
+        <td>${d.board}</td>
+        <td>${d.thickness}</td>
+        <td>${d.paper}</td>
+        <td>${d.finish}</td>
+        <td>${d.osr}</td>
+        <td>${d.a}</td>
+        <td>${d.b}</td>
+        <td>${d.qty}</td>
+        <td>
+            <button class="edit" onclick="editRow(${i})">Edit</button>
+            <button class="delete" onclick="deleteRow(${i})">Delete</button>
+        </td>
+        `;
+    });
+}
+
+function deleteRow(i) {
+    data.splice(i, 1);
+    renderTable();
+}
+
+function editRow(i) {
+    let d = data[i];
+
+    sno.value = d.sno;
+    shift.value = d.shift;
+    machine.value = d.machine;
+    size.value = d.size;
+    board.value = d.board;
+    thickness.value = d.thickness;
+    paper.value = d.paper;
+    finish.value = d.finish;
+    osr.value = d.osr;
+    a.value = d.a;
+    b.value = d.b;
+    qty.value = d.qty;
+
+    deleteRow(i);
+}
+
+function resetData() {
+    data = [];
+    renderTable();
+}
+
+function downloadCSV() {
+    let csv = "Sno,Shift,Machine,Size,Board,Thickness,Paper,Finish,OSR,A,B,Qty\n";
+
+    data.forEach(d => {
+        csv += `${d.sno},${d.shift},${d.machine},${d.size},${d.board},${d.thickness},${d.paper},${d.finish},${d.osr},${d.a},${d.b},${d.qty}\n`;
+    });
+
+    let blob = new Blob([csv]);
+    let a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "production.csv";
+    a.click();
+}
+</script>
+
+</body>
+</html>

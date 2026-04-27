@@ -1,132 +1,167 @@
 import streamlit as st
 import pandas as pd
-from io import BytesIO
-from fpdf import FPDF
-import os
+from datetime import datetime
+import io
 
 st.set_page_config(page_title="Production App", layout="wide")
 
-FILE = "data.xlsx"
+# ---------- CUSTOM CSS ----------
+st.markdown("""
+<style>
+body {
+    background-color: #f5f7fb;
+}
+h1 {
+    text-align: center;
+    color: #1f4e79;
+}
 
-# Load data
-if os.path.exists(FILE):
-    df = pd.read_excel(FILE)
-else:
-    df = pd.DataFrame(columns=[
-        "Day/Night","Machine","Size","Board type",
-        "Thickness","Paper","Finish","OSR",
-        "A Grade","B Grade","Qty"
-    ])
+/* Card style */
+.block-container {
+    padding: 1rem 1rem;
+}
 
-st.markdown("## 📊 Daily Production - Day & Night")
+/* Buttons */
+.stButton>button {
+    width: 100%;
+    border-radius: 10px;
+    height: 45px;
+    font-weight: bold;
+}
+
+/* Save button */
+div.stButton:nth-child(1) button {
+    background-color: #28a745;
+    color: white;
+}
+
+/* Reset button */
+div.stButton:nth-child(2) button {
+    background-color: #dc3545;
+    color: white;
+}
+
+/* Download button */
+div.stDownloadButton button {
+    background: linear-gradient(45deg, #6a11cb, #2575fc);
+    color: white;
+    height: 50px;
+    border-radius: 12px;
+    font-size: 16px;
+}
+
+/* Table */
+table {
+    border-radius: 10px;
+    overflow: hidden;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------- TITLE ----------
+st.title("📊 Daily Production Day and Night")
+
+# ---------- SESSION STATE ----------
+if "data" not in st.session_state:
+    st.session_state.data = []
 
 # ---------- FORM ----------
 with st.container():
-    st.markdown("### ➕ New Entry")
 
-    col1, col2 = st.columns(2)
+    col1, col2, col3, col4 = st.columns(4)
 
-    day = col1.selectbox("Day/Night", ["Day", "Night"])
-    machine = col2.text_input("Machine")
+    with col1:
+        sno = len(st.session_state.data) + 1
+        st.text_input("S.no", sno, disabled=True)
 
-    size = col1.text_input("Size")
-    board = col2.text_input("Board Type")
+    with col2:
+        shift = st.selectbox("Day/Night", ["Day", "Night"])
 
-    thickness = col1.text_input("Thickness")
-    paper = col2.text_input("Paper")
+    with col3:
+        machine = st.selectbox("Machine", ["Machine 1", "Machine 2", "Machine 3"])
 
-    finish = col1.text_input("Finish")
-    osr = col2.number_input("OSR", 0)
+    with col4:
+        size = st.text_input("Size", "22x30")
 
-    a = col1.number_input("A Grade", 0)
-    b = col2.number_input("B Grade", 0)
+    col5, col6, col7, col8 = st.columns(4)
 
-    qty = st.number_input("Qty", 0)
+    with col5:
+        board = st.selectbox("Board type", ["Duplex Board", "Grey Board", "White Board"])
 
-    if st.button("💾 Save Entry"):
-        new_row = pd.DataFrame([[day,machine,size,board,thickness,paper,finish,osr,a,b,qty]],
-        columns=df.columns)
+    with col6:
+        thickness = st.selectbox("Thickness", ["200 GSM", "230 GSM", "250 GSM", "300 GSM", "350 GSM"])
 
-        df = pd.concat([df,new_row], ignore_index=True)
-        df.to_excel(FILE, index=False)
-        st.success("✅ Entry Saved")
+    with col7:
+        paper = st.selectbox("Paper", ["Kraft", "Ivory", "Art Paper"])
 
-# ---------- DATA TABLE ----------
-st.markdown("### 📋 Data")
+    with col8:
+        finish = st.selectbox("Finish", ["Matte", "Gloss"])
 
-st.dataframe(df, use_container_width=True, height=300)
+    col9, col10, col11, col12 = st.columns(4)
 
-# ---------- EDIT ----------
-st.markdown("### ✏ Edit Row")
+    with col9:
+        osr = st.text_input("OSR", "5%")
 
-edit_index = st.number_input("Enter Row Number to Edit", min_value=1, step=1)
+    with col10:
+        a_grade = st.number_input("A Grade", 0)
 
-if st.button("Load Row"):
-    if edit_index <= len(df):
-        row = df.iloc[edit_index-1]
-        st.session_state["edit_data"] = row
+    with col11:
+        b_grade = st.number_input("B Grade", 0)
 
-if "edit_data" in st.session_state:
-    row = st.session_state["edit_data"]
+    with col12:
+        qty = st.number_input("Qty", 0)
 
-    col1, col2 = st.columns(2)
+# ---------- BUTTONS ----------
+col_btn1, col_btn2 = st.columns(2)
 
-    day_e = col1.selectbox("Day/Night", ["Day","Night"], index=0 if row[0]=="Day" else 1)
-    machine_e = col2.text_input("Machine", row[1])
+with col_btn1:
+    if st.button("💾 SAVE"):
+        st.session_state.data.append({
+            "S.no": sno,
+            "Shift": shift,
+            "Machine": machine,
+            "Size": size,
+            "Board": board,
+            "Thickness": thickness,
+            "Paper": paper,
+            "Finish": finish,
+            "OSR": osr,
+            "A Grade": a_grade,
+            "B Grade": b_grade,
+            "Qty": qty
+        })
+        st.success("Saved!")
 
-    size_e = col1.text_input("Size", row[2])
-    board_e = col2.text_input("Board Type", row[3])
+with col_btn2:
+    if st.button("🗑 RESET"):
+        st.session_state.data = []
+        st.warning("All data cleared!")
 
-    thickness_e = col1.text_input("Thickness", row[4])
-    paper_e = col2.text_input("Paper", row[5])
+# ---------- TABLE ----------
+st.subheader("📋 Saved Entries")
 
-    finish_e = col1.text_input("Finish", row[6])
-    osr_e = col2.number_input("OSR", value=int(row[7]))
+if st.session_state.data:
+    df = pd.DataFrame(st.session_state.data)
+    st.dataframe(df, use_container_width=True)
 
-    a_e = col1.number_input("A Grade", value=int(row[8]))
-    b_e = col2.number_input("B Grade", value=int(row[9]))
+    # ---------- DOWNLOAD ----------
+    excel_buffer = io.BytesIO()
+    df.to_excel(excel_buffer, index=False)
+    excel_buffer.seek(0)
 
-    qty_e = st.number_input("Qty", value=int(row[10]))
+    st.download_button(
+        "⬇ Download Excel",
+        data=excel_buffer,
+        file_name="production.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
-    if st.button("Update Row"):
-        df.iloc[edit_index-1] = [day_e,machine_e,size_e,board_e,thickness_e,paper_e,finish_e,osr_e,a_e,b_e,qty_e]
-        df.to_excel(FILE, index=False)
-        st.success("✅ Updated")
+else:
+    st.info("No data yet")
 
-# ---------- DELETE ----------
-st.markdown("### 🗑 Delete Row")
-
-del_index = st.number_input("Enter Row Number to Delete", min_value=1, step=1, key="del")
-
-if st.button("Delete Row"):
-    if del_index <= len(df):
-        df = df.drop(del_index-1).reset_index(drop=True)
-        df.to_excel(FILE, index=False)
-        st.warning("🗑 Deleted")
-
-# ---------- DOWNLOAD EXCEL ----------
-st.markdown("### 📥 Download")
-
-buffer = BytesIO()
-df.to_excel(buffer, index=False, engine='openpyxl')
-
-st.download_button(
-    label="📥 Download Excel",
-    data=buffer.getvalue(),
-    file_name="production.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
-
-# ---------- PDF ----------
-if st.button("📄 Generate PDF"):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=8)
-
-    for i, row in df.iterrows():
-        pdf.cell(200, 5, txt=str(row.values), ln=True)
-
-    pdf.output("report.pdf")
-
-    with open("report.pdf", "rb") as f:
-        st.download_button("📄 Download PDF", f, file_name="report.pdf")
+# ---------- FOOTER ----------
+st.markdown("""
+---
+✅ You can edit or delete entries soon  
+📥 Use download button to export data
+""")

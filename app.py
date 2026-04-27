@@ -1,91 +1,78 @@
 import streamlit as st
 import pandas as pd
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-from datetime import date
+from fpdf import FPDF
+import os
 
-# ---------- GOOGLE SHEETS ----------
-scope = [
-    "https://spreadsheets.google.com/feeds",
-    "https://www.googleapis.com/auth/drive"
-]
+FILE = "data.xlsx"
 
-creds = ServiceAccountCredentials.from_json_keyfile_name("creds.json", scope)
-client = gspread.authorize(creds)
-
-sheet = client.open("ProductionData").sheet1
-
-# ---------- SESSION ----------
-if "size" not in st.session_state:
-    st.session_state.size = ""
-if "board" not in st.session_state:
-    st.session_state.board = ""
-if "thickness" not in st.session_state:
-    st.session_state.thickness = ""
-
-# ---------- UI ----------
-st.title("📱 Production Entry (Online)")
-
-col1, col2, col3 = st.columns(3)
-with col1:
-    entry_date = st.date_input("Date", value=date.today())
-with col2:
-    shift = st.text_input("Shift")
-with col3:
-    machine = st.selectbox("Machine", ["M1","M2","M3","M4","M5","M6","M7"])
-
-st.markdown("### 🔁 Static Fields")
-col4, col5, col6 = st.columns(3)
-with col4:
-    st.session_state.size = st.text_input("Size", value=st.session_state.size)
-with col5:
-    st.session_state.board = st.text_input("Board", value=st.session_state.board)
-with col6:
-    st.session_state.thickness = st.text_input("Thickness", value=st.session_state.thickness)
-
-st.markdown("### ✍️ Entry")
-
-col7, col8, col9, col10, col11 = st.columns(5)
-with col7:
-    paper = st.text_input("Paper")
-with col8:
-    finish = st.text_input("Finish")
-with col9:
-    osr = st.number_input("OSR", min_value=0)
-with col10:
-    a = st.number_input("A Qty", min_value=0)
-with col11:
-    b = st.number_input("B Qty", min_value=0)
-
-# ---------- SAVE ----------
-if st.button("💾 Save"):
-    sheet.append_row([
-        str(entry_date), shift, machine,
-        st.session_state.size,
-        st.session_state.board,
-        st.session_state.thickness,
-        paper, finish, osr, a, b
+# Load data
+if os.path.exists(FILE):
+    df = pd.read_excel(FILE)
+else:
+    df = pd.DataFrame(columns=[
+        "Day/Night","Machine","Size","Board type",
+        "Thickness","Paper","Finish","osr",
+        "A Grade","B Grade","Qty"
     ])
-    st.success("Saved!")
-    st.rerun()
 
-# ---------- LOAD DATA ----------
-data = sheet.get_all_records()
-df = pd.DataFrame(data)
+st.title("📊 Daily Production - Day & Night")
 
-if not df.empty:
-    df_today = df[df["Date"] == str(entry_date)]
+# Form
+with st.form("entry_form"):
+    col1, col2, col3 = st.columns(3)
 
-    st.markdown("## 📋 Data")
-    st.dataframe(df_today, use_container_width=True)
+    day = col1.selectbox("Day/Night", ["Day","Night"])
+    machine = col2.text_input("Machine")
+    size = col3.text_input("Size")
 
-    # ---------- TOTAL ----------
-    st.markdown("## 📊 Totals")
-    st.success(f"""
-    OSR: {df_today['OSR'].sum()}  
-    A: {df_today['A'].sum()}  
-    B: {df_today['B'].sum()}
-    """)
+    board = col1.text_input("Board type")
+    thickness = col2.text_input("Thickness")
+    paper = col3.text_input("Paper")
 
-    # ---------- EXPORT ----------
-    st.download_button("📥 Download Excel", df_today.to_csv(index=False), "report.csv")
+    finish = col1.text_input("Finish")
+    osr = col2.number_input("OSR", 0)
+    a = col3.number_input("A Grade", 0)
+
+    b = col1.number_input("B Grade", 0)
+    qty = col2.number_input("Qty", 0)
+
+    submit = st.form_submit_button("Save")
+
+    if submit:
+        new_row = pd.DataFrame([[day,machine,size,board,thickness,paper,finish,osr,a,b,qty]],
+        columns=df.columns)
+
+        df = pd.concat([df,new_row], ignore_index=True)
+        df.to_excel(FILE, index=False)
+        st.success("Saved!")
+
+# Show table
+st.subheader("📋 Data")
+st.dataframe(df, use_container_width=True)
+
+# Delete
+row_delete = st.number_input("Delete Row No.", min_value=1, step=1)
+if st.button("Delete"):
+    df = df.drop(row_delete-1).reset_index(drop=True)
+    df.to_excel(FILE, index=False)
+    st.warning("Deleted!")
+
+# Download Excel
+st.download_button(
+    "Download Excel",
+    df.to_excel("temp.xlsx", index=False),
+    file_name="production.xlsx"
+)
+
+# PDF
+if st.button("Download PDF"):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=8)
+
+    for i, row in df.iterrows():
+        pdf.cell(200, 5, txt=str(row.values), ln=True)
+
+    pdf.output("report.pdf")
+    with open("report.pdf", "rb") as f:
+        st.download_button("Download PDF File", f, file_name="report.pdf")
